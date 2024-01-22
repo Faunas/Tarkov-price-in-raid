@@ -2,8 +2,8 @@
 
 # Tarkov-price-in-raid
 
-![GitHub](https://img.shields.io/github/license/your-username/your-repo)
-![GitHub last commit](https://img.shields.io/github/last-commit/your-username/your-repo)
+![GitHub](https://img.shields.io/github/license/Faunas/Tarkov-price-in-raid)
+![GitHub last commit](https://img.shields.io/github/last-commit/Faunas/Tarkov-price-in-raid)
 
 </div>
 
