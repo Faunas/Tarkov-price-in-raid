@@ -8,18 +8,15 @@ from gtts import gTTS
 import os
 import pygame
 
-# Укажите путь к исполняемому файлу Tesseract OCR
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# Ожидаемое нажатие клавиши
 target_key = 'insert'
 
-# Желаемое смещение для определения прямоугольной области
 offset_x = 50
 offset_y = 100
 width = 500  # Ширина прямоугольной области
 height = 50  # Высота прямоугольной области
-# Ожидаем нажатие клавиши target_key
+
 while True:
     print(f"Ожидание нажатия клавиши {target_key}...")
     keyboard.wait(target_key)
@@ -55,9 +52,6 @@ while True:
     # Преобразуем изображение в текст с использованием Tesseract OCR
     scanned_text = pytesseract.image_to_string(screenshot_roi_np, config='--psm 6 --oem 3 -l eng')
     scanned_text = scanned_text.replace('\n', '')
-
-
-    # Ваш запрос GraphQL с использованием форматированной строки
     new_query = """
     {{
         items(name: "{}") {{
@@ -79,7 +73,7 @@ while True:
         try:
             sell_for_list = result['data']['items'][0]['sellFor']
 
-            # Исключаем 'fleaMarket'
+            # Исключаем 'Барахолку'
             filtered_sell_for_list = [entry for entry in sell_for_list if entry['source'] != 'fleaMarket']
         except Exception:
             print("Не найдено")

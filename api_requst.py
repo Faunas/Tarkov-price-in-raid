@@ -11,10 +11,7 @@ def run_query(query):
 
 
 def main():
-    # Ваша переменная
     item_name = "m855a1"
-
-    # Заменяем {{}} в запросе на значение переменной item_name
     new_query = """
     {{
         items(name: "{}") {{
