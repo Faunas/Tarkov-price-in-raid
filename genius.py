@@ -7,6 +7,8 @@ from api_requst import run_query
 from gtts import gTTS
 import os
 import pygame
+import Levenshtein
+import json
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -16,6 +18,27 @@ offset_x = 50
 offset_y = 100
 width = 500  # Ширина прямоугольной области
 height = 50  # Высота прямоугольной области
+
+with open('en.json', 'r', encoding='utf-8') as file:
+    json_data_eng = json.load(file)
+
+with open('ru.json', 'r', encoding='utf-8') as file:
+    json_data_ru = json.load(file)
+
+
+def find_most_similar(json_data, search_text):
+    min_distance = float('inf')
+    most_similar_value = None
+
+    for key, value in json_data.items():
+        if "Name" in key:
+            distance = Levenshtein.distance(search_text.lower(), value.lower())
+            if distance < min_distance:
+                min_distance = distance
+                most_similar_value = {"id": key.split()[0], "value": value, "distance": distance}
+
+    return most_similar_value
+
 
 while True:
     print(f"Ожидание нажатия клавиши {target_key}...")
@@ -42,97 +65,103 @@ while True:
     rect_bottom_right = (x + width, y + height)
 
     # Выводим результат
-    print(f"Иконка лупы найдена в координатах {max_loc}")
+    # print(f"Иконка лупы найдена в координатах {max_loc}")
     pyautogui.click(max_loc)
 
     # Создание подизображения из оригинального изображения
-    screenshot_roi = screenshot.crop((rect_top_left[0]+20, rect_top_left[1], rect_bottom_right[0]-100, rect_bottom_right[1]-15))
+    screenshot_roi = screenshot.crop(
+        (rect_top_left[0] + 20, rect_top_left[1], rect_bottom_right[0] - 100, rect_bottom_right[1] - 15))
     screenshot_roi_np = cv2.cvtColor(np.array(screenshot_roi), cv2.COLOR_RGB2BGR)
 
     # Преобразуем изображение в текст с использованием Tesseract OCR
-    scanned_text = pytesseract.image_to_string(screenshot_roi_np, config='--psm 6 --oem 3 -l eng')
+    scanned_text = pytesseract.image_to_string(screenshot_roi_np, config='--psm 6 --oem 3 -l rus')
     scanned_text = scanned_text.replace('\n', '')
-    new_query = """
-    {{
-        items(name: "{}") {{
-            id
-            shortName
-            sellFor {{
-                price
-                source
+    result_ru = find_most_similar(json_data_ru, scanned_text)
+    # print(result_ru)
+    if result_ru is not None:
+        id_to_search = result_ru['id']
+        english_name = json_data_eng.get(f"{id_to_search} Name", "Not Found")
+        # print(
+        #     f"ID: {id_to_search}\nRussian Name: {result_ru['value']}\nEnglish Name: {english_name}, Distance: {result_ru['distance']}")
+        new_query = """
+        {{
+            items(name: "{}") {{
+                id
+                name
+                sellFor {{
+                    price
+                    source
+                }}
             }}
         }}
-    }}
-    """.format(scanned_text)
+        """.format(english_name)
+        result_query = run_query(new_query)
+        # print("Распознанный текст:", scanned_text, "\n")
+        # print("Ответ от API:", result_query, "\n")
 
-    result = run_query(new_query)
-    print("Распознанный текст:", scanned_text, "\n")
+        if result_query:
+            # Получаем список цен
+            try:
+                sell_for_list = result_query['data']['items'][0]['sellFor']
+                item_name_eng = result_query['data']['items'][0]['name']
+                item_name_rus = result_ru['value']
 
-    if result:
-        # Получаем список цен
-        try:
-            sell_for_list = result['data']['items'][0]['sellFor']
+                # Исключаем 'Барахолку'
+                filtered_sell_for_list = [entry for entry in sell_for_list if entry['source'] != 'fleaMarket']
+            except Exception:
+                print("Не найдено")
+                text_to_speak = "Не найдено"
+                language = 'ru'
 
-            # Исключаем 'Барахолку'
-            filtered_sell_for_list = [entry for entry in sell_for_list if entry['source'] != 'fleaMarket']
-        except Exception:
-            print("Не найдено")
-            text_to_speak = "Не найдено"
-            language = 'ru'
+                # Создание объекта gTTS
+                tts = gTTS(text=text_to_speak, lang=language, slow=False)
 
-            # Создание объекта gTTS
-            tts = gTTS(text=text_to_speak, lang=language, slow=False)
+                # Сохранение аудиофайла
+                audio_file_path = 'output.mp3'
+                tts.save(audio_file_path)
 
-            # Сохранение аудиофайла
-            audio_file_path = 'output.mp3'
-            tts.save(audio_file_path)
+                # Инициализация pygame
+                pygame.mixer.init()
 
-            # Инициализация pygame
-            pygame.mixer.init()
+                # Загрузка звукового файла
+                sound = pygame.mixer.Sound(audio_file_path)
 
-            # Загрузка звукового файла
-            sound = pygame.mixer.Sound(audio_file_path)
+                # Воспроизведение аудиофайла
+                sound.play()
 
-            # Воспроизведение аудиофайла
-            sound.play()
+                # Ждем, пока проигрывание не завершится
+                pygame.time.wait(int(sound.get_length() * 1000))  # Преобразуем секунды в миллисекунды
 
-            # Ждем, пока проигрывание не завершится
-            pygame.time.wait(int(sound.get_length() * 1000))  # Преобразуем секунды в миллисекунды
+                # Удаляем временный аудиофайл
+                os.remove(audio_file_path)
+                continue
 
-            # Удаляем временный аудиофайл
-            os.remove(audio_file_path)
-            continue
+            # Если после фильтрации остались элементы, находим максимальное значение
+            if filtered_sell_for_list:
+                max_price_entry = max(filtered_sell_for_list, key=lambda x: x['price'])
+                print("\n------------------------------------------------------\n-------- Наименование:", item_name_rus, "\n-------- Максимальная цена:", max_price_entry['price'])
+                trader_name = max_price_entry['source']
+                trader_name = trader_name.replace("therapist", "Терапевт").replace("fleaMarket", "Барахолка")
+                print("-------- Торговец:", trader_name,"\n------------------------------------------------------")
+                text_to_speak = "{} рублей.".format(max_price_entry['price'])
+                language = 'ru'
+                tts = gTTS(text=text_to_speak, lang=language, slow=False)
+                audio_file_path = 'output.mp3'
+                tts.save(audio_file_path)
+                pygame.mixer.init()
 
-        # Если после фильтрации остались элементы, находим максимальное значение
-        if filtered_sell_for_list:
-            max_price_entry = max(filtered_sell_for_list, key=lambda x: x['price'])
-            print("-------- Максимальная цена:", max_price_entry['price'], " --------\n")
-            print("Торговец:", max_price_entry['source'])
-            text_to_speak = "{} рублей.".format(max_price_entry['price'])
-            language = 'ru'
+                # Загрузка звукового файла
+                sound = pygame.mixer.Sound(audio_file_path)
 
-            # Создание объекта gTTS
-            tts = gTTS(text=text_to_speak, lang=language, slow=False)
+                # Воспроизведение аудиофайла
+                sound.play()
 
-            # Сохранение аудиофайла
-            audio_file_path = 'output.mp3'
-            tts.save(audio_file_path)
+                # Ждем, пока проигрывание не завершится
+                pygame.time.wait(int(sound.get_length() * 1000))  # Преобразуем секунды в миллисекунды
 
-            # Инициализация pygame
-            pygame.mixer.init()
-
-            # Загрузка звукового файла
-            sound = pygame.mixer.Sound(audio_file_path)
-
-            # Воспроизведение аудиофайла
-            sound.play()
-
-            # Ждем, пока проигрывание не завершится
-            pygame.time.wait(int(sound.get_length() * 1000))  # Преобразуем секунды в миллисекунды
-
-            # Удаляем временный аудиофайл
-            os.remove(audio_file_path)
+                # Удаляем временный аудиофайл
+                os.remove(audio_file_path)
+            else:
+                print("Все цены от 'fleaMarket', нет данных для сравнения.")
         else:
-            print("Все цены от 'fleaMarket', нет данных для сравнения.")
-    else:
-        print("Ошибка выполнения запроса GraphQL.")
+            print("Ошибка выполнения запроса GraphQL.")

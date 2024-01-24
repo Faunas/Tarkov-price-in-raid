@@ -11,11 +11,12 @@ def run_query(query):
 
 
 def main():
-    item_name = "m855a1"
+    item_name = "TerraGroup Labs access keycard"
     new_query = """
     {{
         items(name: "{}") {{
             id
+            name
             sellFor {{
                 price
                 source
