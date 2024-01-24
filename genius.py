@@ -74,7 +74,7 @@ while True:
     screenshot_roi_np = cv2.cvtColor(np.array(screenshot_roi), cv2.COLOR_RGB2BGR)
 
     # Преобразуем изображение в текст с использованием Tesseract OCR
-    scanned_text = pytesseract.image_to_string(screenshot_roi_np, config='--psm 6 --oem 3 -l rus')
+    scanned_text = pytesseract.image_to_string(screenshot_roi_np, config='--psm 6 --oem 3 -l rus+eng')
     scanned_text = scanned_text.replace('\n', '')
     result_ru = find_most_similar(json_data_ru, scanned_text)
     # print(result_ru)
@@ -84,17 +84,17 @@ while True:
         # print(
         #     f"ID: {id_to_search}\nRussian Name: {result_ru['value']}\nEnglish Name: {english_name}, Distance: {result_ru['distance']}")
         new_query = """
-        {{
-            items(name: "{}") {{
-                id
-                name
-                sellFor {{
-                    price
-                    source
+                {{
+                    items(name: "{}") {{
+                        id
+                        name
+                        sellFor {{
+                            price
+                            source
+                        }}
+                    }}
                 }}
-            }}
-        }}
-        """.format(english_name)
+                """.format(english_name.replace('"', r'\"'))
         result_query = run_query(new_query)
         # print("Распознанный текст:", scanned_text, "\n")
         # print("Ответ от API:", result_query, "\n")
@@ -141,7 +141,7 @@ while True:
                 max_price_entry = max(filtered_sell_for_list, key=lambda x: x['price'])
                 print("\n------------------------------------------------------\n-------- Наименование:", item_name_rus, "\n-------- Максимальная цена:", max_price_entry['price'])
                 trader_name = max_price_entry['source']
-                trader_name = trader_name.replace("therapist", "Терапевт").replace("fleaMarket", "Барахолка")
+                trader_name = trader_name.replace("therapist", "Терапевт").replace("fleaMarket", "Барахолка").replace("mechanic", "Механик")
                 print("-------- Торговец:", trader_name,"\n------------------------------------------------------")
                 text_to_speak = "{} рублей.".format(max_price_entry['price'])
                 language = 'ru'
